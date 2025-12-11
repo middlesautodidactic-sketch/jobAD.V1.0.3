@@ -22,10 +22,11 @@ body { font-family: "TH Sarabun New", sans-serif; background: #f8fafc; margin:0;
 .btn-group { display:flex; justify-content:center; gap:10px; margin:10px 0; align-items:center; }
 .btn { background:#ff0101; color:#fff; border:none; padding:8px 14px; border-radius:8px; cursor:pointer; font-size:14px; font-weight:600; transition:0.2s; }
 .btn:hover { background:#c82a11; }
+.btn:disabled { background:#94a3b8; cursor:not-allowed; }
 .btn.secondary { background:#64748b; }
 .btn.secondary:hover { background:#475569; }
 
-.container { width:210mm;  background:#fff; margin:10px auto; padding:18mm; box-shadow:0 6px 20px rgba(0,0,0,0.08); border-radius:12px; box-sizing:border-box; }
+.container { width:210mm;  background:#fff; margin:10px auto; padding:18mm; box-shadow:0 6px 20px rgba(0,0,0,0.08); border-radius:12px; box-sizing:border-box; transition:opacity 0.3s; }
 
 .header-title { text-align:center; margin-bottom:4mm; }
 .header-title h2 { margin:0 0 2mm 0; text-decoration:underline; font-weight:700; font-size:18px; }
@@ -50,7 +51,7 @@ input[type="checkbox"] { transform:scale(1.1); margin-right:3px; }
 input[type="text"] { padding:8px 12px; font-size:14px; border:1px solid #ddd; border-radius:6px; width:200px; }
 .search-box { display:flex; gap:10px; align-items:center; }
 
-/* CSS สำหรับการปริ้น - รักษาความยาวเส้นจุดเท่าเดิม */
+/* CSS สำหรับการปริ้น */
 @media print {
   .line, .lines, .line1, .line2, .line3, .line4, .line5, .line6, .line7, .line8, .line9 {
     border-bottom: 1px dotted #000 !important;
@@ -98,7 +99,7 @@ input[type="text"] { padding:8px 12px; font-size:14px; border:1px solid #ddd; bo
 
 <div id="report" class="container">
 
-  <!-- 🔹 หัวข้อ + เลขที่สั่งงาน (กระชับขึ้น) -->
+  <!-- 🔹 หัวข้อ + เลขที่สั่งงาน -->
   <div class="header-title">
     <h2>ใบสั่งงาน / ใบรายงานผลการปฏิบัติงาน</h2>
     <div class="jobno">เลขที่: <span id="jobNo" class="line"></span></div>
@@ -211,6 +212,9 @@ const jobNumberInput = document.getElementById("jobNumberInput");
 const searchBtn = document.getElementById("searchBtn");
 const signatureImg = document.getElementById("signatureImg");
 
+// ตัวแปรเก็บสถานะการโหลดข้อมูล
+let isDataLoaded = false;
+
 // ดึงค่าจาก URL parameters ที่ส่งมาจาก manageS.html
 function getParamsFromURL() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -230,12 +234,17 @@ async function searchAndDisplay(jobNum = null) {
     return;
   }
 
+  // แสดง Loading
+  document.getElementById("report").style.opacity = "0.5";
+  isDataLoaded = false;
+
   try {
     const q = query(collection(db, "events"), where("jobNumber", "==", jobNumber));
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
       alert("❌ ไม่พบข้อมูล Job Number: " + jobNumber);
+      document.getElementById("report").style.opacity = "1";
       return;
     }
 
@@ -315,11 +324,16 @@ async function searchAndDisplay(jobNum = null) {
     document.getElementById("note").textContent = data.remark || "";
     document.getElementById("incompleteReason").textContent = data.incompleteReason || "";
 
+    // ✅ เซ็ตว่าข้อมูลโหลดเสร็จแล้ว
+    isDataLoaded = true;
+    document.getElementById("report").style.opacity = "1";
     alert("✅ พบข้อมูล Job Number: " + jobNumber);
 
   } catch (error) {
     console.error("Error:", error);
     alert("❌ เกิดข้อผิดพลาด: " + error.message);
+    document.getElementById("report").style.opacity = "1";
+    isDataLoaded = false;
   }
 }
 
@@ -343,32 +357,90 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// ปริ้น PDF
-document.getElementById("printBtn").addEventListener("click", () => {
-  const element = document.getElementById("report");
+// ปริ้น PDF - เพิ่มการตรวจสอบอย่างเข้มงวด
+document.getElementById("printBtn").addEventListener("click", async () => {
+  
+  // ✅ เช็คว่าข้อมูลโหลดแล้วหรือยัง
+  if (!isDataLoaded) {
+    alert("⚠️ กรุณาค้นหาข้อมูลก่อนปริ้น! (กดปุ่ม 🔍 ค้นหา)");
+    return;
+  }
 
-  // ดึงเลข Job Number จากฟอร์ม
-  const jobNumber = document.getElementById("docNo").textContent.trim() || "ใบสั่งงาน";
-  const filename = `${jobNumber}.pdf`;
+  // ✅ เช็คว่ามีข้อมูลหรือยัง
+  const jobNumber = document.getElementById("docNo").textContent.trim();
+  
+  if (!jobNumber) {
+    alert("⚠️ ไม่พบข้อมูลในฟอร์ม กรุณาค้นหาใหม่อีกครั้ง!");
+    isDataLoaded = false;
+    return;
+  }
 
-  html2pdf().set({
-    margin: [0, 0, 0, 0],
-    filename: filename,
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { 
-      scale: 2, 
-      useCORS: true,
-      windowHeight: element.scrollHeight,
-      height: element.scrollHeight
-    },
-    jsPDF: { 
-      unit: "px", 
-      format: [element.offsetWidth, element.scrollHeight], 
-      orientation: "portrait",
-      hotfixes: ["px_scaling"]
-    },
-    pagebreak: { mode: 'avoid-all' }
-  }).from(element).save();
+  // ✅ แสดง Loading
+  const printBtn = document.getElementById("printBtn");
+  const originalText = printBtn.textContent;
+  printBtn.textContent = "⏳ กำลังสร้าง PDF...";
+  printBtn.disabled = true;
+
+  try {
+    const element = document.getElementById("report");
+    const filename = `${jobNumber}.pdf`;
+
+    // ✅ รอให้รูปลายเซ็นโหลดเสร็จ (ถ้ามี)
+    const signatureImg = document.getElementById("signatureImg");
+    if (signatureImg && signatureImg.style.display !== "none") {
+      await new Promise((resolve) => {
+        if (signatureImg.complete) {
+          resolve();
+        } else {
+          signatureImg.onload = resolve;
+          signatureImg.onerror = resolve;
+          // Timeout ป้องกันค้างไม่สิ้นสุด
+          setTimeout(resolve, 3000);
+        }
+      });
+    }
+
+    // ✅ รอ 800ms ให้แน่ใจว่า DOM เรนเดอร์เสร็จสมบูรณ์
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    // ✅ เช็คอีกครั้งก่อนสร้าง PDF
+    const finalCheck = document.getElementById("docNo").textContent.trim();
+    if (!finalCheck) {
+      throw new Error("ข้อมูลหายไประหว่างการสร้าง PDF");
+    }
+
+    // ✅ สร้าง PDF
+    await html2pdf().set({
+      margin: [10, 10, 10, 10],
+      filename: filename,
+      image: { type: "jpeg", quality: 0.95 },
+      html2canvas: { 
+        scale: 3,
+        useCORS: true,
+        allowTaint: true,
+        logging: true,
+        letterRendering: true,
+        windowHeight: element.scrollHeight + 100,
+        height: element.scrollHeight + 100
+      },
+      jsPDF: { 
+        unit: "mm", 
+        format: "a4", 
+        orientation: "portrait"
+      },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    }).from(element).save();
+
+    alert("✅ สร้าง PDF สำเร็จ: " + filename);
+
+  } catch (error) {
+    console.error("PDF Error:", error);
+    alert("❌ เกิดข้อผิดพลาดในการสร้าง PDF: " + error.message + "\n\nกรุณาลองใหม่อีกครั้ง หรือตรวจสอบการเชื่อมต่ออินเทอร์เน็ต");
+  } finally {
+    // ✅ คืนค่าปุ่ม
+    printBtn.textContent = originalText;
+    printBtn.disabled = false;
+  }
 });
 </script>
 </body>
