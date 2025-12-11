@@ -411,24 +411,24 @@ document.getElementById("printBtn").addEventListener("click", async () => {
 
     // ✅ สร้าง PDF
     await html2pdf().set({
-      margin: [10, 10, 10, 10],
+      margin: [0, 0, 0, 0],
       filename: filename,
-      image: { type: "jpeg", quality: 0.95 },
+      image: { type: "jpeg", quality: 0.98 },
       html2canvas: { 
-        scale: 3,
+        scale: 2, 
         useCORS: true,
         allowTaint: true,
         logging: true,
-        letterRendering: true,
-        windowHeight: element.scrollHeight + 100,
-        height: element.scrollHeight + 100
+        windowHeight: element.scrollHeight,
+        height: element.scrollHeight
       },
       jsPDF: { 
-        unit: "mm", 
-        format: "a4", 
-        orientation: "portrait"
+        unit: "px", 
+        format: [element.offsetWidth, element.scrollHeight], 
+        orientation: "portrait",
+        hotfixes: ["px_scaling"]
       },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      pagebreak: { mode: 'avoid-all' }
     }).from(element).save();
 
     alert("✅ สร้าง PDF สำเร็จ: " + filename);
