@@ -677,7 +677,7 @@
       loadLeaves();
     });
 
-    window.editLeave = (id, start, end, reason) => {
+   window.editLeave = (id, start, end, reason) => {
       editingLeaveId = id;
       
       document.getElementById("leaveStart").value = start;
@@ -689,7 +689,9 @@
       document.getElementById("addLeaveBtn").textContent = "💾 บันทึกการแก้ไข";
       document.getElementById("cancelEditBtn").style.display = "block";
       
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // เลื่อนมาที่ card แก้ไขพอดี
+      const formCard = document.querySelector('.card');
+      formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     document.getElementById("cancelEditBtn").addEventListener("click", () => {
