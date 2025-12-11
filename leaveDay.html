@@ -20,7 +20,6 @@
       padding: 20px;
     }
 
-    /* Container with glassmorphism */
     .container {
       max-width: 1000px;
       margin: 0 auto;
@@ -212,7 +211,7 @@
       color: #666;
     }
 
-    /* Button */
+    /* Buttons */
     .btn-primary {
       width: 100%;
       background: linear-gradient(135deg, #c00 0%, #a00 100%);
@@ -226,6 +225,7 @@
       transition: all 0.3s ease;
       box-shadow: 0 4px 15px rgba(204, 0, 0, 0.3);
       margin-top: 10px;
+      font-family: 'Kanit', sans-serif;
     }
 
     .btn-primary:hover {
@@ -235,6 +235,27 @@
 
     .btn-primary:active {
       transform: translateY(0);
+    }
+
+    .btn-cancel {
+      width: 100%;
+      background: linear-gradient(135deg, #666 0%, #555 100%);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(102, 102, 102, 0.3);
+      margin-top: 10px;
+      font-family: 'Kanit', sans-serif;
+    }
+
+    .btn-cancel:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 102, 102, 0.4);
     }
 
     /* Leave Items */
@@ -331,6 +352,7 @@
       background: #fff;
       cursor: pointer;
       margin-bottom: 10px;
+      font-family: 'Kanit', sans-serif;
     }
 
     input[type="file"]:hover {
@@ -340,7 +362,7 @@
 
     .btn-group {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 10px;
       margin-top: 10px;
     }
@@ -365,6 +387,17 @@
     .btn-upload:hover {
       transform: translateY(-2px);
       box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+    }
+
+    .btn-edit {
+      background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+      color: #fff;
+      box-shadow: 0 4px 15px rgba(255, 152, 0, 0.3);
+    }
+
+    .btn-edit:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 152, 0, 0.4);
     }
 
     .btn-delete {
@@ -464,11 +497,11 @@
       <span>กลับหน้าหลัก</span>
     </a>
 
-    <!-- Add Leave Form -->
+    <!-- Add/Edit Leave Form -->
     <div class="card">
       <div class="card-header">
-        <div class="card-icon">➕</div>
-        <h2 class="card-title">เพิ่มวันลาใหม่</h2>
+        <div class="card-icon" id="formIcon">➕</div>
+        <h2 class="card-title" id="formTitle">เพิ่มวันลาใหม่</h2>
       </div>
 
       <div class="form-group">
@@ -498,6 +531,7 @@
       </div>
 
       <button class="btn-primary" id="addLeaveBtn">บันทึกวันลา</button>
+      <button class="btn-cancel" id="cancelEditBtn" style="display:none;">❌ ยกเลิกการแก้ไข</button>
     </div>
 
     <!-- Leave List -->
@@ -536,6 +570,7 @@
     const storage = getStorage(app);
 
     let currentUserName = "";
+    let editingLeaveId = null;
 
     function setCurrentUserFromURL() {
       const params = new URLSearchParams(window.location.search);
@@ -594,8 +629,11 @@
               <button class="btn-secondary btn-upload" onclick="uploadFile('${d.id}')">
                 📤 แนบเอกสาร
               </button>
+              <button class="btn-secondary btn-edit" onclick="editLeave('${d.id}', '${data.start}', '${data.end}', '${data.reason}')">
+                ✏️ แก้ไข
+              </button>
               <button class="btn-secondary btn-delete" onclick="deleteLeave('${d.id}')">
-                🗑️ ลบรายการ
+                🗑️ ลบ
               </button>
             </div>
           </div>
@@ -622,17 +660,58 @@
         return;
       }
 
-      await addDoc(collection(db, "leaves"), {
-        name, start, end, reason
-      });
+      if (editingLeaveId) {
+        await updateDoc(doc(db, "leaves", editingLeaveId), {
+          start, end, reason
+        });
+        alert("✅ แก้ไขวันลาเรียบร้อยแล้ว");
+        resetForm();
+      } else {
+        await addDoc(collection(db, "leaves"), {
+          name, start, end, reason
+        });
+        alert("✅ บันทึกวันลาเรียบร้อยแล้ว");
+        clearForm();
+      }
 
+      loadLeaves();
+    });
+
+    window.editLeave = (id, start, end, reason) => {
+      editingLeaveId = id;
+      
+      document.getElementById("leaveStart").value = start;
+      document.getElementById("leaveEnd").value = end;
+      document.getElementById("leaveReason").value = reason;
+      
+      document.getElementById("formIcon").textContent = "✏️";
+      document.getElementById("formTitle").textContent = "แก้ไขวันลา";
+      document.getElementById("addLeaveBtn").textContent = "💾 บันทึกการแก้ไข";
+      document.getElementById("cancelEditBtn").style.display = "block";
+      
+      // เลื่อนมาที่ card แก้ไขพอดี
+      const formCard = document.querySelector('.card');
+      formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    document.getElementById("cancelEditBtn").addEventListener("click", () => {
+      resetForm();
+    });
+
+    function resetForm() {
+      editingLeaveId = null;
+      clearForm();
+      document.getElementById("formIcon").textContent = "➕";
+      document.getElementById("formTitle").textContent = "เพิ่มวันลาใหม่";
+      document.getElementById("addLeaveBtn").textContent = "บันทึกวันลา";
+      document.getElementById("cancelEditBtn").style.display = "none";
+    }
+
+    function clearForm() {
       document.getElementById("leaveStart").value = "";
       document.getElementById("leaveEnd").value = "";
       document.getElementById("leaveReason").value = "";
-
-      alert("✅ บันทึกวันลาเรียบร้อยแล้ว");
-      loadLeaves();
-    });
+    }
 
     window.uploadFile = async (id) => {
       const fileInput = document.getElementById(`file-${id}`);
