@@ -343,8 +343,14 @@ jobNumberInput.addEventListener("keypress", (e) => {
   if (e.key === "Enter") searchAndDisplay();
 });
 
-// โหลดข้อมูลอัตโนมัติถ้ามี jobNumber ใน URL
-window.addEventListener('DOMContentLoaded', () => {
+// โหลดข้อมูลอัตโนมัติถ้ามี jobNumber ใน URL - เพิ่มเวลารอ Firebase
+window.addEventListener('DOMContentLoaded', async () => {
+  console.log("🌐 เริ่มโหลดหน้าเว็บ...");
+  
+  // ✅ รอให้ Firebase โหลดเสร็จก่อน (สำหรับเครื่องช้า)
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  console.log("✅ Firebase พร้อมใช้งาน");
+  
   const params = getParamsFromURL();
   
   if (params.jobNumber) {
@@ -357,8 +363,11 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// ปริ้น PDF - เพิ่มการตรวจสอบอย่างเข้มงวด
+// ปริ้น PDF - เพิ่มการตรวจสอบอย่างเข้มงวด + Debug Mode
 document.getElementById("printBtn").addEventListener("click", async () => {
+  
+  console.log("🔍 เริ่มตรวจสอบข้อมูลก่อนปริ้น...");
+  console.log("isDataLoaded:", isDataLoaded);
   
   // ✅ เช็คว่าข้อมูลโหลดแล้วหรือยัง
   if (!isDataLoaded) {
@@ -368,9 +377,22 @@ document.getElementById("printBtn").addEventListener("click", async () => {
 
   // ✅ เช็คว่ามีข้อมูลหรือยัง
   const jobNumber = document.getElementById("docNo").textContent.trim();
+  console.log("Job Number:", jobNumber);
   
   if (!jobNumber) {
     alert("⚠️ ไม่พบข้อมูลในฟอร์ม กรุณาค้นหาใหม่อีกครั้ง!");
+    isDataLoaded = false;
+    return;
+  }
+
+  // เช็คข้อมูลอื่นๆ ในฟอร์ม
+  const assignedBy = document.getElementById("assignedBy").textContent.trim();
+  const location = document.getElementById("location").textContent.trim();
+  console.log("ผู้สั่งงาน:", assignedBy);
+  console.log("สถานที่:", location);
+
+  if (!assignedBy && !location) {
+    alert("⚠️ ข้อมูลไม่ครบถ้วน กรุณาค้นหาใหม่!");
     isDataLoaded = false;
     return;
   }
@@ -382,59 +404,77 @@ document.getElementById("printBtn").addEventListener("click", async () => {
   printBtn.disabled = true;
 
   try {
+    console.log("📄 เริ่มสร้าง PDF...");
     const element = document.getElementById("report");
     const filename = `${jobNumber}.pdf`;
 
     // ✅ รอให้รูปลายเซ็นโหลดเสร็จ (ถ้ามี)
     const signatureImg = document.getElementById("signatureImg");
     if (signatureImg && signatureImg.style.display !== "none") {
+      console.log("⏳ รอโหลดรูปลายเซ็น...");
       await new Promise((resolve) => {
         if (signatureImg.complete) {
+          console.log("✅ รูปลายเซ็นโหลดเสร็จแล้ว");
           resolve();
         } else {
-          signatureImg.onload = resolve;
-          signatureImg.onerror = resolve;
+          signatureImg.onload = () => {
+            console.log("✅ รูปลายเซ็นโหลดสำเร็จ");
+            resolve();
+          };
+          signatureImg.onerror = () => {
+            console.log("⚠️ รูปลายเซ็นโหลดไม่สำเร็จ");
+            resolve();
+          };
           // Timeout ป้องกันค้างไม่สิ้นสุด
-          setTimeout(resolve, 3000);
+          setTimeout(() => {
+            console.log("⏱️ Timeout รูปลายเซ็น");
+            resolve();
+          }, 3000);
         }
       });
     }
 
-    // ✅ รอ 800ms ให้แน่ใจว่า DOM เรนเดอร์เสร็จสมบูรณ์
-    await new Promise(resolve => setTimeout(resolve, 800));
+    // ✅ รอ 2000ms ให้แน่ใจว่า DOM เรนเดอร์เสร็จสมบูรณ์ (เพิ่มเวลาสำหรับเครื่องช้า)
+    console.log("⏳ รอ DOM เรนเดอร์...");
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     // ✅ เช็คอีกครั้งก่อนสร้าง PDF
     const finalCheck = document.getElementById("docNo").textContent.trim();
+    console.log("Final Check Job Number:", finalCheck);
+    
     if (!finalCheck) {
       throw new Error("ข้อมูลหายไประหว่างการสร้าง PDF");
     }
 
-    // ✅ สร้าง PDF
+    console.log("🎨 กำลัง render HTML to Canvas...");
+
+    // ✅ สร้าง PDF - ใช้มาตรฐาน A4 เพื่อความเสถียรในทุกเครื่อง
     await html2pdf().set({
-      margin: [0, 0, 0, 0],
+      margin: [10, 10, 10, 10],
       filename: filename,
-      image: { type: "jpeg", quality: 0.98 },
+      image: { type: "jpeg", quality: 0.95 },
       html2canvas: { 
-        scale: 2, 
+        scale: 3,
         useCORS: true,
         allowTaint: true,
         logging: true,
-        windowHeight: element.scrollHeight,
-        height: element.scrollHeight
+        letterRendering: true,
+        windowHeight: element.scrollHeight + 100,
+        height: element.scrollHeight + 100
       },
       jsPDF: { 
-        unit: "px", 
-        format: [element.offsetWidth, element.scrollHeight], 
-        orientation: "portrait",
-        hotfixes: ["px_scaling"]
+        unit: "mm", 
+        format: "a4", 
+        orientation: "portrait"
       },
-      pagebreak: { mode: 'avoid-all' }
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     }).from(element).save();
 
+    console.log("✅ PDF สร้างสำเร็จ!");
     alert("✅ สร้าง PDF สำเร็จ: " + filename);
 
   } catch (error) {
-    console.error("PDF Error:", error);
+    console.error("❌ PDF Error:", error);
     alert("❌ เกิดข้อผิดพลาดในการสร้าง PDF: " + error.message + "\n\nกรุณาลองใหม่อีกครั้ง หรือตรวจสอบการเชื่อมต่ออินเทอร์เน็ต");
   } finally {
     // ✅ คืนค่าปุ่ม
